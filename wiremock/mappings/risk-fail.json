@@ -1,0 +1,1 @@
+{"priority":1,"request":{"method":"POST","urlPath":"/risk/evaluate","bodyPatterns":[{"matchesJsonPath":{"expression":"$.simulate","equalTo":"fail"}}]},"response":{"status":500,"headers":{"Content-Type":"application/json"},"jsonBody":{"error":"simulated_failure"}}}

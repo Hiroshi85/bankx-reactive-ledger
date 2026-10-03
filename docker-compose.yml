@@ -1,0 +1,17 @@
+services:
+  mongo:
+    image: mongo:7.0
+    ports: ["27017:27017"]
+    volumes: ["bankx-mongo-data:/data/db"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  wiremock:
+    image: wiremock/wiremock:3.13.1
+    ports: ["8089:8080"]
+    volumes: ["./wiremock:/home/wiremock"]
+    command: ["--global-response-templating", "--verbose"]
+volumes:
+  bankx-mongo-data:

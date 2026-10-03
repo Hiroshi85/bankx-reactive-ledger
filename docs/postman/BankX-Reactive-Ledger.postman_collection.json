@@ -1,0 +1,184 @@
+{
+  "info": {
+    "_postman_id": "6e064be4-0d80-4bbd-a146-ba0c7a0a0001",
+    "name": "BankX Reactive Ledger - Track A",
+    "description": "Pruebas funcionales para Track A. Requiere `docker compose up -d` y la aplicación en ejecución. El request SSE está separado porque mantiene la conexión abierta y no debe incluirse en una ejecución automática completa.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Actuator health - UP",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/actuator/health", "host": ["{{baseUrl}}"], "path": ["actuator", "health"] }
+          },
+          "event": [{
+            "listen": "test",
+            "script": { "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('La aplicación está UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+            ] }
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Successful transactions",
+      "item": [
+        {
+          "name": "201 - CREDIT approved",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"accountNumber\": \"001-0001\",\n  \"type\": \"CREDIT\",\n  \"amount\": 10\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/transactions", "host": ["{{baseUrl}}"], "path": ["api", "transactions"] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+            "const body = pm.response.json();",
+            "pm.test('Transacción CREDIT OK', () => { pm.expect(body.type).to.eql('CREDIT'); pm.expect(body.status).to.eql('OK'); pm.expect(body.id).to.be.a('string').and.not.empty; });",
+            "pm.test('Saldo retornado', () => pm.expect(body.balance).to.be.a('number'));"
+          ] } }]
+        },
+        {
+          "name": "201 - DEBIT approved",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"accountNumber\": \"001-0001\",\n  \"type\": \"DEBIT\",\n  \"amount\": 1\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/transactions", "host": ["{{baseUrl}}"], "path": ["api", "transactions"] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+            "const body = pm.response.json();",
+            "pm.test('Transacción DEBIT OK', () => { pm.expect(body.type).to.eql('DEBIT'); pm.expect(body.status).to.eql('OK'); });"
+          ] } }]
+        }
+      ]
+    },
+    {
+      "name": "Risk scenarios",
+      "item": [
+        {
+          "name": "422 - Risk rejected (no fallback)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"accountNumber\": \"001-0001\",\n  \"type\": \"CREDIT\",\n  \"amount\": 1,\n  \"simulate\": \"reject\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/transactions", "host": ["{{baseUrl}}"], "path": ["api", "transactions"] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('HTTP 422', () => pm.response.to.have.status(422));",
+            "pm.test('Error risk_rejected', () => pm.expect(pm.response.json()).to.deep.eql({ error: 'risk_rejected' }));"
+          ] } }]
+        },
+        {
+          "name": "201 - Risk HTTP 500 uses legacy fallback",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"accountNumber\": \"001-0001\",\n  \"type\": \"CREDIT\",\n  \"amount\": 1,\n  \"simulate\": \"fail\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/transactions", "host": ["{{baseUrl}}"], "path": ["api", "transactions"] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Fallback termina en HTTP 201', () => pm.response.to.have.status(201));",
+            "pm.test('Transacción OK', () => pm.expect(pm.response.json().status).to.eql('OK'));"
+          ] } }]
+        },
+        {
+          "name": "201 - Risk timeout uses legacy fallback",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"accountNumber\": \"001-0001\",\n  \"type\": \"CREDIT\",\n  \"amount\": 1,\n  \"simulate\": \"slow\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/transactions", "host": ["{{baseUrl}}"], "path": ["api", "transactions"] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('Timeout y fallback terminan en HTTP 201', () => pm.response.to.have.status(201));",
+            "pm.test('Transacción OK', () => pm.expect(pm.response.json().status).to.eql('OK'));",
+            "pm.test('Responde antes que WireMock slow', () => pm.expect(pm.response.responseTime).to.be.below(2500));"
+          ] } }]
+        }
+      ]
+    },
+    {
+      "name": "Business and validation errors",
+      "item": [
+        {
+          "name": "422 - Insufficient funds",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"accountNumber\": \"001-0003\",\n  \"type\": \"DEBIT\",\n  \"amount\": 1\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/transactions", "host": ["{{baseUrl}}"], "path": ["api", "transactions"] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('HTTP 422', () => pm.response.to.have.status(422));",
+            "pm.test('Error insufficient_funds', () => pm.expect(pm.response.json()).to.deep.eql({ error: 'insufficient_funds' }));"
+          ] } }]
+        },
+        {
+          "name": "404 - Account not found",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"accountNumber\": \"999-9999\",\n  \"type\": \"CREDIT\",\n  \"amount\": 1\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/transactions", "host": ["{{baseUrl}}"], "path": ["api", "transactions"] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+            "pm.test('Error account_not_found', () => pm.expect(pm.response.json()).to.deep.eql({ error: 'account_not_found' }));"
+          ] } }]
+        },
+        {
+          "name": "400 - Amount must be positive",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"accountNumber\": \"001-0001\",\n  \"type\": \"DEBIT\",\n  \"amount\": 0\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/transactions", "host": ["{{baseUrl}}"], "path": ["api", "transactions"] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+            "pm.test('Error validation_error', () => pm.expect(pm.response.json()).to.deep.eql({ error: 'validation_error' }));"
+          ] } }]
+        },
+        {
+          "name": "400 - Invalid transaction type",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"accountNumber\": \"001-0001\",\n  \"type\": \"TRANSFER\",\n  \"amount\": 1\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/transactions", "host": ["{{baseUrl}}"], "path": ["api", "transactions"] }
+          },
+          "event": [{ "listen": "test", "script": { "exec": [
+            "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+            "pm.test('Error validation_error', () => pm.expect(pm.response.json()).to.deep.eql({ error: 'validation_error' }));"
+          ] } }]
+        }
+      ]
+    },
+    {
+      "name": "SSE - Run manually",
+      "item": [
+        {
+          "name": "Listen transaction events",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "text/event-stream" }],
+            "url": { "raw": "{{baseUrl}}/api/stream/transactions", "host": ["{{baseUrl}}"], "path": ["api", "stream", "transactions"] },
+            "description": "Enviar este request manualmente y mantenerlo abierto. Desde otra pestaña, ejecutar cualquier transacción exitosa. Debe aparecer un evento `transaction`. No ejecutar esta carpeta con Collection Runner porque el stream no finaliza por sí solo."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

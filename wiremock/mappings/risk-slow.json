@@ -1,0 +1,1 @@
+{"priority":1,"request":{"method":"POST","urlPath":"/risk/evaluate","bodyPatterns":[{"matchesJsonPath":{"expression":"$.simulate","equalTo":"slow"}}]},"response":{"status":200,"fixedDelayMilliseconds":2500,"headers":{"Content-Type":"application/json"},"jsonBody":{"decision":"APPROVED"}}}
